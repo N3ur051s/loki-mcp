@@ -8,11 +8,17 @@ echo "Building MCP server and client..."
 go build -o loki-mcp-server ./cmd/server
 go build -o loki-mcp-client ./cmd/client
 
-# Check if Docker Compose is running
-if ! docker ps | grep -q loki; then
+# Check if the bundled Loki container is running
+if ! docker inspect -f '{{.State.Running}}' loki 2>/dev/null | grep -q true; then
+    if docker compose version >/dev/null 2>&1; then
+        COMPOSE="docker compose"
+    else
+        COMPOSE="docker-compose"
+    fi
+
     echo "Starting Docker Compose environment..."
-    docker-compose up -d
-    
+    $COMPOSE up -d
+
     # Wait for Loki to start
     echo "Waiting for Loki to start..."
     sleep 10

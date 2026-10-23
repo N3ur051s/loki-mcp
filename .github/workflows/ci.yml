@@ -6,184 +6,98 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.24.4'
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Download dependencies
+        run: go mod download
 
-    - name: Verify dependencies
-      run: go mod verify
+      - name: Verify dependencies
+        run: go mod verify
 
-    - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
 
-    - name: Check test coverage
-      run: |
-        go tool cover -func=coverage.out
-        echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        go tool cover -func=coverage.out >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: Check test coverage
+        run: |
+          go tool cover -func=coverage.out
+          echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          go tool cover -func=coverage.out >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.out
-        fail_ci_if_error: false
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          fail_ci_if_error: false
 
   build:
     name: Build
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.24.4'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: Build server
+        run: go build -trimpath -v ./cmd/server
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Build client
+        run: go build -trimpath -v ./cmd/client
 
-    - name: Build server
-      run: go build -v ./cmd/server
-
-    - name: Build client
-      run: go build -v ./cmd/client
-
-    - name: Check for vulnerabilities
-      run: |
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
+      - name: Check for vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.24.4'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v4
-      with:
-        version: latest
-        args: --timeout=5m
+      - name: Run go vet
+        run: go vet ./...
 
-#   integration-test:
-#     name: Integration Test
-#     runs-on: ubuntu-latest
-    
-#     services:
-#       loki:
-#         image: grafana/loki:2.9.0
-#         ports:
-#           - 3100:3100
-#         options: >-
-#           --health-cmd="wget -q --spider http://localhost:3100/ready || exit 1"
-#           --health-interval=5s
-#           --health-timeout=5s
-#           --health-retries=10
-#           --health-start-period=5s
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
 
-#     steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v4
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#     - name: Set up Go
-#       uses: actions/setup-go@v4
-#       with:
-#         go-version: '1.24.4'
-
-#     - name: Download dependencies
-#       run: go mod download
-
-#     - name: Build client and server
-#       run: |
-#         go build -o loki-mcp-server ./cmd/server
-#         go build -o loki-mcp-client ./cmd/client
-
-#     - name: Wait for Loki to be ready
-#       run: |
-#         timeout 30s bash -c 'until curl -f http://localhost:3100/ready; do sleep 1; done'
-
-#     - name: Insert test logs
-#       run: |
-#         chmod +x ./insert-loki-logs.sh
-#         ./insert-loki-logs.sh --num 5 --job ci-test
-
-#     - name: Test timestamp parsing with real Loki data
-#       run: |
-#         chmod +x ./test-loki-query.sh
-#         # Test that our timestamp fix works with real Loki
-#         OUTPUT=$(./loki-mcp-client loki_query '{job="ci-test"}' "-1h" "now" 10 2>&1)
-#         echo "Query output: $OUTPUT"
-        
-#         # Verify no 2262 dates appear (the bug we fixed)
-#         if echo "$OUTPUT" | grep -q "2262"; then
-#           echo "ERROR: Found year 2262 in output, timestamp bug is present!"
-#           echo "$OUTPUT"
-#           exit 1
-#         fi
-        
-#         # Verify we got some logs with reasonable dates
-#         if echo "$OUTPUT" | grep -q "202[3-9]"; then
-#           echo "SUCCESS: Found reasonable timestamps in output"
-#         else
-#           echo "ERROR: No reasonable timestamps found in output"
-#           echo "$OUTPUT"
-#           exit 1
-#         fi
-
-#     - name: Test MCP tool functionality
-#       env:
-#         LOKI_URL: http://localhost:3100
-#       run: |
-#         # Test basic MCP functionality
-#         echo '{"jsonrpc":"2.0","id":"1","method":"tools/call","params":{"name":"loki_query","arguments":{"query":"{job=\"ci-test\"}","start":"-1h","end":"now","limit":5}}}' | \
-#         timeout 10s ./loki-mcp-server > /tmp/mcp_output.json 2>&1 &
-#         SERVER_PID=$!
-#         sleep 2
-        
-#         # Check if we got valid JSON response
-#         if [ -f /tmp/mcp_output.json ]; then
-#           echo "MCP Server response:"
-#           cat /tmp/mcp_output.json
-#         fi
-        
-#         # Clean up
-#         kill $SERVER_PID 2>/dev/null || true 
+      - name: Build image
+        run: docker build -t loki-mcp-server:test .

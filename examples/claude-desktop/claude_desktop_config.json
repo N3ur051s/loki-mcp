@@ -2,12 +2,17 @@
   "mcpServers": {
     "loki-mcp-server": {
       "command": "go",
-      "args": ["run", "/path/to/loki-mcp-server/cmd/server/main.go"],
+      "args": ["run", "/path/to/loki-mcp/cmd/server"],
       "env": {
-        "LOKI_URL": "http://localhost:3100"
+        "MCP_TRANSPORT": "stdio",
+        "LOKI_URL": "http://localhost:3100",
+        "LOKI_ORG_ID": "",
+        "LOKI_USERNAME": "",
+        "LOKI_PASSWORD": "",
+        "LOKI_TOKEN": ""
       },
       "disabled": false,
-      "autoApprove": ["loki_query"]
+      "autoApprove": ["loki_query", "loki_label_names", "loki_label_values"]
     }
   }
 }

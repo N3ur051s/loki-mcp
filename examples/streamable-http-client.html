@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loki MCP - Streamable HTTP Client</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { margin-bottom: .25rem; }
+    .muted { opacity: .7; margin-top: 0; }
+    .row { display: flex; gap: .5rem; margin: .75rem 0; flex-wrap: wrap; }
+    input, select, button, textarea { font: inherit; padding: .5rem .65rem; border-radius: 6px; border: 1px solid #8884; }
+    input[type="text"], textarea { flex: 1; min-width: 16rem; }
+    button { cursor: pointer; background: #2563eb; color: white; border-color: transparent; }
+    button.secondary { background: #6b7280; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    #status { font-weight: 600; }
+    #log { background: #1111; border: 1px solid #8884; border-radius: 8px; padding: .75rem; height: 22rem; overflow: auto; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .85rem; }
+    .ok { color: #16a34a; }
+    .err { color: #dc2626; }
+    #tools { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
+    #tools button { background: #0f766e; }
+  </style>
+</head>
+<body>
+  <h1>Loki MCP Server</h1>
+  <p class="muted">Browser test client using the Streamable HTTP transport.</p>
+
+  <div class="row">
+    <input id="endpoint" type="text" value="http://localhost:8080/mcp" aria-label="MCP endpoint">
+    <button id="connect">Connect</button>
+    <button id="disconnect" class="secondary" disabled>Disconnect</button>
+  </div>
+  <div class="row">
+    <span>Status: <span id="status">disconnected</span></span>
+  </div>
+
+  <h2>Tools</h2>
+  <div id="tools"><span class="muted">Connect to load tools.</span></div>
+
+  <h2>loki_query</h2>
+  <div class="row">
+    <input id="query" type="text" value='{job="varlogs"}' aria-label="LogQL query">
+    <select id="format" aria-label="Output format">
+      <option value="raw">raw</option>
+      <option value="text">text</option>
+      <option value="json">json</option>
+    </select>
+    <button id="run" disabled>Run query</button>
+  </div>
+
+  <h2>Log</h2>
+  <div id="log" aria-live="polite"></div>
+
+  <script>
+    const els = {
+      endpoint: document.getElementById("endpoint"),
+      connect: document.getElementById("connect"),
+      disconnect: document.getElementById("disconnect"),
+      status: document.getElementById("status"),
+      tools: document.getElementById("tools"),
+      query: document.getElementById("query"),
+      format: document.getElementById("format"),
+      run: document.getElementById("run"),
+      log: document.getElementById("log"),
+    };
+
+    let sessionId = null;
+    let nextId = 1;
+    let connected = false;
+
+    function log(message, kind = "") {
+      const line = typeof message === "string" ? message : JSON.stringify(message, null, 2);
+      const entry = document.createElement("div");
+      entry.className = kind;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${line}`;
+      els.log.appendChild(entry);
+      els.log.scrollTop = els.log.scrollHeight;
+    }
+
+    function setStatus(text, kind = "") {
+      els.status.textContent = text;
+      els.status.className = kind;
+      connected = text === "connected";
+      els.connect.disabled = connected;
+      els.disconnect.disabled = !connected;
+      els.run.disabled = !connected;
+    }
+
+    function headers() {
+      const value = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2025-03-26",
+      };
+      if (sessionId) value["Mcp-Session-Id"] = sessionId;
+      return value;
+    }
+
+    async function readResponse(response) {
+      if (response.status === 202) return null;
+      const text = await response.text();
+      if (!text) return null;
+      if ((response.headers.get("content-type") || "").includes("text/event-stream")) {
+        const data = text.split("\n")
+          .filter((line) => line.startsWith("data: "))
+          .map((line) => line.slice(6))
+          .join("\n");
+        return data ? JSON.parse(data) : null;
+      }
+      return JSON.parse(text);
+    }
+
+    async function rpc(method, params, notification = false) {
+      const payload = { jsonrpc: "2.0", method, params };
+      if (!notification) payload.id = nextId++;
+
+      const response = await fetch(els.endpoint.value, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(payload),
+      });
+
+      const returnedSession = response.headers.get("Mcp-Session-Id");
+      if (returnedSession) sessionId = returnedSession;
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`HTTP ${response.status}: ${body}`);
+      }
+
+      const message = await readResponse(response);
+      if (message && message.error) {
+        throw new Error(`${message.error.code}: ${message.error.message}`);
+      }
+      return message ? message.result : null;
+    }
+
+    async function connect() {
+      setStatus("connecting…");
+      els.tools.innerHTML = "";
+      sessionId = null;
+      try {
+        const result = await rpc("initialize", {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "loki-mcp-browser", version: "1.0.0" },
+        });
+        await rpc("notifications/initialized", {}, true);
+        log(`Connected to ${result.serverInfo.name} ${result.serverInfo.version}`, "ok");
+        await loadTools();
+        setStatus("connected", "ok");
+      } catch (error) {
+        setStatus("error", "err");
+        log(String(error), "err");
+      }
+    }
+
+    async function disconnect() {
+      try {
+        if (sessionId) {
+          await fetch(els.endpoint.value, { method: "DELETE", headers: headers() });
+        }
+      } catch (error) {
+        log(`DELETE failed: ${error}`, "err");
+      }
+      sessionId = null;
+      setStatus("disconnected");
+      els.tools.innerHTML = "<span class='muted'>Connect to load tools.</span>";
+      log("Disconnected");
+    }
+
+    async function loadTools() {
+      const result = await rpc("tools/list", {});
+      els.tools.innerHTML = "";
+      for (const tool of result.tools || []) {
+        const button = document.createElement("button");
+        button.textContent = tool.name;
+        button.title = tool.description || "";
+        button.addEventListener("click", () => {
+          if (tool.name === "loki_label_values") {
+            const label = prompt("Label name (for example: job)");
+            if (!label) return;
+            callTool(tool.name, { label });
+          } else if (tool.name === "loki_label_names") {
+            callTool(tool.name, {});
+          } else {
+            runQuery();
+          }
+        });
+        els.tools.appendChild(button);
+      }
+      if (!(result.tools || []).length) {
+        els.tools.innerHTML = "<span class='muted'>No tools returned.</span>";
+      }
+    }
+
+    async function callTool(name, args) {
+      setStatus("running…");
+      try {
+        const result = await rpc("tools/call", { name, arguments: args });
+        for (const item of result.content || []) {
+          if (item.type === "text") log(item.text);
+          else log(item);
+        }
+        if (result.isError) log("Tool returned isError=true", "err");
+        setStatus("connected", "ok");
+      } catch (error) {
+        setStatus("error", "err");
+        log(String(error), "err");
+      }
+    }
+
+    function runQuery() {
+      const args = {
+        query: els.query.value,
+        format: els.format.value,
+      };
+      callTool("loki_query", args);
+    }
+
+    els.connect.addEventListener("click", connect);
+    els.disconnect.addEventListener("click", disconnect);
+    els.run.addEventListener("click", runQuery);
+  </script>
+</body>
+</html>

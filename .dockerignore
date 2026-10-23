@@ -1,0 +1,13 @@
+.git
+.github
+.gitignore
+.vscode
+.idea
+*.md
+!README.md
+coverage.out
+loki-mcp-server
+loki-mcp-server_*
+loki-mcp-client
+loki-mcp-client_*
+examples

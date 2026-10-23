@@ -1,401 +1,378 @@
 # Loki MCP Server
 
-[![CI](https://github.com/scottlepp/loki-mcp/workflows/CI/badge.svg)](https://github.com/scottlepp/loki-mcp/actions/workflows/ci.yml)
+基于 Go 的 [Grafana Loki](https://grafana.com/oss/loki/) Model Context Protocol (MCP) 服务，通过
+**Streamable HTTP** 对外提供 Loki 查询能力。
 
-A Go-based server implementation for the Model Context Protocol (MCP) with Grafana Loki integration.
+## 功能
 
-## Getting Started
+- Streamable HTTP 传输：`http://<host>:8080/mcp`
+- 三个只读工具：
+  - `loki_query`：执行 LogQL 查询
+  - `loki_label_names`：获取全部标签名
+  - `loki_label_values`：获取指定标签的值
+- 支持 Loki Basic Auth、Bearer Token 和多租户 `X-Scope-OrgID`
+- 支持 stateless / stateful 会话、CORS、心跳和健康检查
+- 基于 `mcp-go v1.3.0`，兼容新旧 MCP 协议版本
 
-### Prerequisites
+## Docker 部署
 
-- Go 1.16 or higher
-
-### Building and Running
-
-Build and run the server:
-
-```bash
-# Build the server
-go build -o loki-mcp-server ./cmd/server
-
-# Run the server
-./loki-mcp-server
-```
-
-Or run directly with Go:
+### 1. 构建镜像
 
 ```bash
-go run ./cmd/server
+docker build -t loki-mcp-server:0.2.0 .
 ```
 
-The server communicates using stdin/stdout and SSE following the Model Context Protocol (MCP). This makes it suitable for use with Claude Desktop and other MCP-compatible clients.
+### 2. 启动容器
 
-## Project Structure
-
-```
-.
-├── cmd/
-│   ├── server/       # MCP server implementation
-│   └── client/       # Client for testing the MCP server
-├── internal/
-│   ├── handlers/     # Tool handlers
-│   └── models/       # Data models
-├── pkg/
-│   └── utils/        # Utility functions and shared code
-└── go.mod            # Go module definition
-```
-
-## MCP Server
-
-The Loki MCP Server implements the Model Context Protocol (MCP) and provides the following tools:
-
-### Loki Query Tool
-
-The `loki_query` tool allows you to query Grafana Loki log data:
-
-- Required parameters:
-  - `query`: LogQL query string
-
-- Optional parameters:
-  - `url`: The Loki server URL (default: from LOKI_URL environment variable or http://localhost:3100)
-  - `start`: Start time for the query (default: 1h ago)
-  - `end`: End time for the query (default: now)
-  - `limit`: Maximum number of entries to return (default: 100)
-  - `org`: Organization ID for the query (sent as X-Scope-OrgID header)
-
-#### Environment Variables
-
-The Loki query tool supports the following environment variables:
-
-- `LOKI_URL`: Default Loki server URL to use if not specified in the request
-- `LOKI_ORG_ID`: Default organization ID to use if not specified in the request
-- `LOKI_USERNAME`: Default username for basic authentication if not specified in the request
-- `LOKI_PASSWORD`: Default password for basic authentication if not specified in the request
-- `LOKI_TOKEN`: Default bearer token for authentication if not specified in the request
-
-**Security Note**: When using authentication environment variables, be careful not to expose sensitive credentials in logs or configuration files. Consider using token-based authentication over username/password when possible.
-
-### Testing the MCP Server
-
-You can test the MCP server using the provided client:
+Docker 镜像默认使用 HTTP 模式：
 
 ```bash
-# Build the client
-go build -o loki-mcp-client ./cmd/client
-
-# Loki query examples:
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-./loki-mcp-client loki_query "{job=\"varlogs\"}" "-1h" "now" 100
-
-# Using environment variables:
-export LOKI_URL="http://localhost:3100"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using environment variables for both URL and org:
-export LOKI_URL="http://localhost:3100"
-export LOKI_ORG_ID="tenant-123"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using environment variables for authentication:
-export LOKI_URL="http://localhost:3100"
-export LOKI_USERNAME="admin"
-export LOKI_PASSWORD="password"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using environment variables with bearer token:
-export LOKI_URL="http://localhost:3100"
-export LOKI_TOKEN="your-bearer-token"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using all environment variables together:
-export LOKI_URL="http://localhost:3100"
-export LOKI_ORG_ID="tenant-123"
-export LOKI_USERNAME="admin"
-export LOKI_PASSWORD="password"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using org parameter for multi-tenant setups:
-./loki-mcp-client loki_query "{job=\"varlogs\"}" "" "" "" "" "" "tenant-123"
+docker run -d \
+  --name loki-mcp \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e LOKI_URL=http://host.docker.internal:3100 \
+  loki-mcp-server:0.2.0
 ```
 
-## Docker Support
-
-You can build and run the MCP server using Docker:
+Linux 主机需要让容器能够访问宿主机上的 Loki：
 
 ```bash
-# Build the Docker image
-docker build -t loki-mcp-server .
-
-# Run the server
-docker run --rm -i loki-mcp-server
+docker run -d \
+  --name loki-mcp \
+  --restart unless-stopped \
+  --add-host=host.docker.internal:host-gateway \
+  -p 8080:8080 \
+  -e LOKI_URL=http://host.docker.internal:3100 \
+  loki-mcp-server:0.2.0
 ```
 
-Alternatively, you can use Docker Compose:
+如果 Loki 在另一个容器中，把 `LOKI_URL` 改成对应的服务地址即可：
 
 ```bash
-# Build and run with Docker Compose
-docker-compose up --build
+-e LOKI_URL=http://loki:3100
 ```
 
-### Local Testing with Loki
-
-The project includes a complete Docker Compose setup to test Loki queries locally:
-
-1. Start the Docker Compose environment:
-   ```bash
-   docker-compose up -d
-   ```
-
-   This will start:
-   - A Loki server on port 3100
-   - A Grafana instance on port 3000 (pre-configured with Loki as a data source)
-   - A log generator container that sends sample logs to Loki
-   - The Loki MCP server
-
-2. Use the provided test script to query logs:
-   ```bash
-   # Run with default parameters (queries last 15 minutes of logs)
-   ./test-loki-query.sh
-   
-   # Query for error logs
-   ./test-loki-query.sh '{job="varlogs"} |= "ERROR"'
-   
-   # Specify a custom time range and limit
-   ./test-loki-query.sh '{job="varlogs"}' '-1h' 'now' 50
-   ```
-
-3. Insert dummy logs for testing:
-   ```bash
-   # Insert 10 dummy logs with default settings
-   ./insert-loki-logs.sh
-   
-   # Insert 20 logs with custom job and app name
-   ./insert-loki-logs.sh --num 20 --job "custom-job" --app "my-app"
-   
-   # Insert logs with custom environment and interval
-   ./insert-loki-logs.sh --env "production" --interval 0.5
-   
-   # Show help message
-   ./insert-loki-logs.sh --help
-   ```
-
-4. Access the Grafana UI at http://localhost:3000 to explore logs visually.
-
-## Server-Sent Events (SSE) Support
-
-The server now supports two modes of communication:
-1. Standard input/output (stdin/stdout) following the Model Context Protocol (MCP)
-2. HTTP Server with Server-Sent Events (SSE) endpoint for integration with tools like n8n
-
-The default port for the HTTP server is 8080, but can be configured using the `SSE_PORT` environment variable.
-
-### Server Endpoints
-
-When running in HTTP mode, the server exposes the following endpoints:
-
-- SSE Endpoint: `http://localhost:8080/sse` - For real-time event streaming
-- MCP Endpoint: `http://localhost:8080/mcp` - For MCP protocol messaging
-
-### Using Docker with SSE
-
-When running the server with Docker, make sure to expose port 8080:
+### 3. 验证服务
 
 ```bash
-# Build the Docker image
-docker build -t loki-mcp-server .
-
-# Run the server with port mapping
-docker run -p 8080:8080 --rm -i loki-mcp-server
+curl http://localhost:8080/healthz
 ```
 
-### n8n Integration
+返回示例：
 
-You can integrate the Loki MCP Server with n8n workflows:
+```json
+{
+  "service": "loki-mcp-server",
+  "status": "ok",
+  "time": "2026-10-23T12:00:00Z",
+  "version": "0.2.0"
+}
+```
 
-1. Install the MCP Client Tools node in n8n
+Streamable HTTP 端点：
 
-2. Configure the node with these parameters:
-   - **SSE Endpoint**: `http://your-server-address:8080/sse` (replace with your actual server address)
-   - **Authentication**: Choose appropriate authentication if needed
-   - **Tools to Include**: Choose which Loki tools to expose to the AI Agent
+```text
+http://localhost:8080/mcp
+```
 
-3. Connect the MCP Client Tool node to an AI Agent node that will use the Loki querying capabilities
+### 4. Docker Compose
 
-Example workflow:
-Trigger → MCP Client Tool (Loki server) → AI Agent (Claude)
+仓库自带一个完整的演示环境，包含 Loki、Grafana、Promtail、日志生成器和 MCP 服务：
 
-## Architecture
-
-The Loki MCP Server uses a modular architecture:
-
-- **Server**: The main MCP server implementation in `cmd/server/main.go`
-- **Client**: A test client in `cmd/client/main.go` for interacting with the MCP server
-- **Handlers**: Individual tool handlers in `internal/handlers/`
-  - `loki.go`: Grafana Loki query functionality
-
-## Using with Claude Desktop
-
-You can use this MCP server with Claude Desktop to add Loki query tools. Follow these steps:
-
-### Option 1: Using the Compiled Binary
-
-1. Build the server:
 ```bash
-go build -o loki-mcp-server ./cmd/server
+docker compose up -d --build
 ```
 
-2. Add the configuration to your Claude Desktop configuration file using `claude_desktop_config_binary.json`.
+启动后：
 
-### Option 2: Using Go Run with a Shell Script
+| 服务 | 地址 |
+| --- | --- |
+| Loki MCP Server | `http://localhost:8080/mcp` |
+| 健康检查 | `http://localhost:8080/healthz` |
+| Loki | `http://localhost:3100` |
+| Grafana | `http://localhost:3000` |
 
-1. Make the script executable:
+查看日志：
+
 ```bash
-chmod +x run-mcp-server.sh
+docker compose logs -f loki-mcp-server
 ```
 
-2. Add the configuration to your Claude Desktop configuration file using `claude_desktop_config_script.json`.
+停止并删除容器：
 
-### Option 3: Using Docker (Recommended)
-
-1. Build the Docker image:
 ```bash
-docker build -t loki-mcp-server .
+docker compose down
 ```
 
-2. Add the configuration to your Claude Desktop configuration file using `claude_desktop_config_docker.json`.
+### 5. 使用外部 Loki
 
-### Configuration Details
+生产环境通常不需要 Compose 里的 Loki/Grafana。可以只启动 MCP 服务：
 
-The Claude Desktop configuration file is located at:
-- On macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-- On Linux: `~/.config/Claude/claude_desktop_config.json`
+```bash
+docker compose up -d loki-mcp-server
+```
 
-You can use one of the example configurations provided in this repository:
-- `claude_desktop_config.json`: Generic template
-- `claude_desktop_config_example.json`: Example using `go run` with the current path
-- `claude_desktop_config_binary.json`: Example using the compiled binary
-- `claude_desktop_config_script.json`: Example using a shell script (recommended for `go run`)
-- `claude_desktop_config_docker.json`: Example using Docker (most reliable)
+然后通过环境变量指定外部 Loki：
 
-**Notes**:
-- When using `go run` with Claude Desktop, you may need to set several environment variables in both the script and the configuration file:
-  - `HOME`: The user's home directory
-  - `GOPATH`: The Go workspace directory
-  - `GOMODCACHE`: The Go module cache directory
-  - `GOCACHE`: The Go build cache directory
-  
-  These are required to ensure Go can find its modules and build cache when run from Claude Desktop.
+```yaml
+services:
+  loki-mcp-server:
+    image: loki-mcp-server:0.2.0
+    ports:
+      - "8080:8080"
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HTTP_ADDR: 0.0.0.0:8080
+      LOKI_URL: https://loki.example.com
+      LOKI_ORG_ID: tenant-1
+      LOKI_TOKEN: your-bearer-token
+```
 
-- Using Docker is the most reliable approach as it packages all dependencies and environment variables in a container.
+## 环境变量
 
-Or create your own configuration:
+### 服务端
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MCP_TRANSPORT` | `http` | Docker 镜像已设置为 HTTP 模式 |
+| `MCP_HTTP_ADDR` | 空 | 完整监听地址，例如 `0.0.0.0:8080` |
+| `PORT` | `8080` | 未设置 `MCP_HTTP_ADDR` 时使用的端口 |
+| `MCP_STREAMABLE_PATH` | `/mcp` | Streamable HTTP 端点路径 |
+| `MCP_SESSION_MODE` | `stateless` | `stateless` 或 `stateful` |
+| `MCP_SESSION_IDLE_TTL` | `30m` | stateful 会话空闲超时 |
+| `MCP_HEARTBEAT_INTERVAL` | `30s` | Streamable HTTP 心跳间隔，`0` 表示关闭 |
+| `MCP_CORS_ORIGINS` | `*` | 允许的跨域来源，逗号分隔；`none` 表示关闭 |
+| `MCP_CORS_ALLOW_CREDENTIALS` | `false` | 是否允许携带凭据的跨域请求 |
+| `MCP_CORS_MAX_AGE` | `600` | CORS 预检缓存秒数 |
+| `MCP_DISABLE_DNS_REBINDING_PROTECTION` | `false` | 是否关闭本地 DNS 重绑定保护 |
+| `MCP_TLS_CERT` | 空 | TLS 证书路径，需同时设置 `MCP_TLS_KEY` |
+| `MCP_TLS_KEY` | 空 | TLS 私钥路径，需同时设置 `MCP_TLS_CERT` |
+| `MCP_SHUTDOWN_TIMEOUT` | `10s` | 优雅关闭超时 |
+| `LOG_LEVEL` | `info` | `debug`、`info`、`warn`、`error` |
+
+### Loki 连接
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `LOKI_URL` | `http://localhost:3100` | Loki 地址 |
+| `LOKI_ORG_ID` | 空 | 多租户 ID，发送为 `X-Scope-OrgID` |
+| `LOKI_USERNAME` | 空 | Basic Auth 用户名 |
+| `LOKI_PASSWORD` | 空 | Basic Auth 密码 |
+| `LOKI_TOKEN` | 空 | Bearer Token，优先级高于 Basic Auth |
+| `LOKI_TIMEOUT` | `30s` | 请求 Loki 的超时时间 |
+
+## Streamable HTTP 使用
+
+### 端点
+
+| 端点 | 方法 | 说明 |
+| --- | --- | --- |
+| `/mcp` | `POST`、`GET`、`DELETE` | Streamable HTTP |
+| `/stream` | `POST`、`GET`、`DELETE` | `/mcp` 的兼容别名 |
+| `/health`、`/healthz` | `GET`、`HEAD` | 健康检查 |
+
+### MCP Inspector
+
+```bash
+npx @modelcontextprotocol/inspector
+```
+
+选择 **Streamable HTTP**，连接：
+
+```text
+http://localhost:8080/mcp
+```
+
+### Claude Code
+
+```bash
+claude mcp add --transport http loki http://localhost:8080/mcp
+```
+
+### Cursor
+
+在 `~/.cursor/mcp.json` 中添加：
 
 ```json
 {
   "mcpServers": {
-    "lokiserver": {
-      "command": "path/to/loki-mcp-server",
-      "args": [],
-      "env": {
-        "LOKI_URL": "http://localhost:3100",
-        "LOKI_ORG_ID": "your-default-org-id",
-        "LOKI_USERNAME": "your-username",
-        "LOKI_PASSWORD": "your-password",
-        "LOKI_TOKEN": "your-bearer-token"
-      },
-      "disabled": false,
-      "autoApprove": ["loki_query"]
+    "loki": {
+      "url": "http://localhost:8080/mcp"
     }
   }
 }
 ```
 
-Make sure to replace `path/to/loki-mcp-server` with the absolute path to the built binary or source code.
+### VS Code
 
-4. Restart Claude Desktop.
-
-5. You can now use the tools in Claude:
-   - Loki query examples:
-     - "Query Loki for logs with the query {job=\"varlogs\"}"
-     - "Find error logs from the last hour in Loki using query {job=\"varlogs\"} |= \"ERROR\""
-     - "Show me the most recent 50 logs from Loki with job=varlogs"
-     - "Query Loki for logs with org 'tenant-123' using query {job=\"varlogs\"}"
-
-### Using Organization ID in Natural Language Prompts
-
-When using this MCP server with Claude Desktop or other AI assistants, users can naturally mention the organization ID in their prompts in several ways:
-
-#### Direct Organization Reference
-- **"Query Loki for logs from organization 'tenant-123' with the query {job=\"varlogs\"}"**
-- **"Search Loki logs for org 'production-env' using {job=\"web\"}"**
-- **"Get logs from organization ID 'client-abc' matching {service=\"api\"}"**
-
-#### Contextual Organization Mentions
-- **"Check the error logs for our production tenant (org: prod-001) using query {level=\"error\"}"**
-- **"Find all logs from customer organization 'customer-xyz' for the last hour"**
-- **"Query Loki with org tenant-456 to find logs matching {job=\"backend\"}"**
-
-#### Multi-tenant Scenarios
-- **"Switch to organization 'dev-team' and query {job=\"logs\"} for debugging"**
-- **"Use org 'staging-env' to search for warning logs in the last 2 hours"**
-- **"Search logs in tenant 'qa-environment' for any error messages"**
-
-#### Combined with Other Parameters
-- **"Query Loki for organization 'prod-cluster' from 2 hours ago to now with limit 50"**
-- **"Get the last 100 logs from org 'microservice-team' for query {app=\"payment\"}"**
-
-When you mention any of these natural language prompts, the AI assistant will automatically map terms like "organization", "org", "tenant", or "organization ID" to the `org` parameter in the Loki query tool, which gets sent as the `X-Scope-OrgID` header to your Loki server for proper multi-tenant filtering.
-
-The key is to naturally mention any specific parameters in your request - the AI will understand how to map them to the appropriate Loki query tool parameters. When parameters are not explicitly mentioned, the system will automatically use defaults from environment variables:
-- `LOKI_URL` for the Loki server URL
-- `LOKI_ORG_ID` for the organization ID  
-- `LOKI_USERNAME` and `LOKI_PASSWORD` for basic authentication
-- `LOKI_TOKEN` for bearer token authentication
-
-This makes it very convenient to set up default connection parameters once and then use natural language queries without having to specify authentication details every time.
-
-## Using with Cursor
-
-You can also integrate the Loki MCP server with the Cursor editor. To do this, add the following configuration to your Cursor settings:
-
-Docker configuration:
+在 `.vscode/mcp.json` 中添加：
 
 ```json
 {
-  "mcpServers": {
-    "loki-mcp-server": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i", 
-               "-e", "LOKI_URL=http://host.docker.internal:3100", 
-               "-e", "LOKI_ORG_ID=your-default-org-id",
-               "-e", "LOKI_USERNAME=your-username",
-               "-e", "LOKI_PASSWORD=your-password",
-               "-e", "LOKI_TOKEN=your-bearer-token",
-               "loki-mcp-server:latest"]
+  "servers": {
+    "loki": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp"
     }
   }
 }
 ```
 
-After adding this configuration, restart Cursor, and you'll be able to use the Loki query tool directly within the editor.
+### n8n
 
-## License
+在 MCP Client Tool 节点中配置：
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+```text
+http://your-server:8080/mcp
+```
 
-## Running Tests
+### curl 调用
 
-The project includes comprehensive unit tests and CI/CD workflows to ensure reliability:
+初始化：
 
 ```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test -coverprofile=coverage.out ./...
-go tool cover -func=coverage.out
-
-# Run tests with race detection  
-go test -race ./...
+curl -sS http://localhost:8080/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Protocol-Version: 2025-03-26' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-03-26",
+      "capabilities": {},
+      "clientInfo": {"name": "curl", "version": "1.0.0"}
+    }
+  }'
 ```
+
+调用工具：
+
+```bash
+curl -sS http://localhost:8080/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Protocol-Version: 2025-03-26' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "loki_query",
+      "arguments": {
+        "query": "{job=\"varlogs\"} |= \"ERROR\"",
+        "start": "-1h",
+        "end": "now",
+        "limit": 50,
+        "format": "raw"
+      }
+    }
+  }'
+```
+
+### 测试脚本
+
+仓库提供了基于 `curl` + `jq` 的测试脚本：
+
+```bash
+chmod +x examples/streamable-http.sh
+./examples/streamable-http.sh http://localhost:8080/mcp '{job="varlogs"}' raw
+```
+
+也可以直接用浏览器打开：
+
+```text
+examples/streamable-http-client.html
+```
+
+把端点填写为 `http://localhost:8080/mcp` 即可连接和调用工具。
+
+## 工具参数
+
+### `loki_query`
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `query` | 是 | LogQL 查询，例如 `{job="varlogs"} |= "ERROR"` |
+| `url` | 否 | Loki 地址，默认使用 `LOKI_URL` |
+| `start` | 否 | RFC3339、相对时间（`-1h`、`-30m`）或 `now`，默认 `-1h` |
+| `end` | 否 | RFC3339、相对时间或 `now`，默认 `now` |
+| `limit` | 否 | 最大条数，默认 `100` |
+| `org` | 否 | 租户 ID，发送为 `X-Scope-OrgID` |
+| `username` | 否 | Basic Auth 用户名 |
+| `password` | 否 | Basic Auth 密码 |
+| `token` | 否 | Bearer Token |
+| `format` | 否 | `raw`（默认）、`json`、`text` |
+
+### `loki_label_names`
+
+获取全部标签名，支持与 `loki_query` 相同的连接、时间范围和格式参数。
+
+### `loki_label_values`
+
+获取指定标签的全部值，额外需要：
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `label` | 是 | 标签名，例如 `job` |
+
+## 会话模式
+
+- **`stateless`**（默认）：不保存服务端会话，适合 Docker、多副本和负载均衡部署。
+- **`stateful`**：返回 `Mcp-Session-Id`，支持 `DELETE` 终止会话。多副本部署时需要粘性会话。
+
+## 反向代理注意事项
+
+Streamable HTTP 可能使用长连接和流式响应，反向代理需要：
+
+- 关闭响应缓冲（`proxy_buffering off`）
+- 增大读取超时（`proxy_read_timeout`）
+- 保留 `Mcp-Session-Id`、`MCP-Protocol-Version`、`Last-Event-ID` 等请求头
+
+如果代理通过回环地址转发公网 `Host`，需要重写 `Host` 头，或设置：
+
+```bash
+MCP_DISABLE_DNS_REBINDING_PROTECTION=true
+```
+
+## 安全建议
+
+- 服务本身不提供用户认证，请通过内网、反向代理认证、mTLS 或 API Gateway 保护。
+- 生产环境不要保留 `MCP_CORS_ORIGINS=*`，应配置明确的来源。
+- Loki 凭据放在 Secret 或环境变量中，不要写入提示词。
+- `X-Scope-OrgID` 只是租户标识，不是认证机制。
+- 多副本部署优先使用 `MCP_SESSION_MODE=stateless`。
+
+## 常见问题
+
+### 404
+
+确认使用 `/mcp`，不要带尾斜杠。
+
+### 浏览器 CORS 报错
+
+```bash
+-e MCP_CORS_ORIGINS=https://your-app.example.com
+```
+
+### 容器无法连接 Loki
+
+容器内的 `localhost` 指向容器自身：
+
+- Docker Desktop：使用 `host.docker.internal`
+- Linux：添加 `--add-host=host.docker.internal:host-gateway`
+- Compose：使用 Loki 的服务名
+
+### 会话丢失
+
+使用单副本、粘性会话，或改为：
+
+```bash
+-e MCP_SESSION_MODE=stateless
+```
+
+## 许可证
+
+MIT License

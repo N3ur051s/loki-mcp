@@ -3,15 +3,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VERSION: "0.2.0"
     image: loki-mcp-server:latest
     container_name: loki-mcp-server
-    # Expose unified MCP server port
+    restart: unless-stopped
     ports:
       - "8080:8080"
-    # If you need to pass environment variables
     environment:
-      - LOKI_URL=http://loki:3100
-      - PORT=8080
+      # Expose the Streamable HTTP endpoint on /mcp.
+      MCP_TRANSPORT: http
+      MCP_HTTP_ADDR: 0.0.0.0:8080
+      MCP_SESSION_MODE: stateless
+      MCP_CORS_ORIGINS: "*"
+      LOKI_URL: http://loki:3100
+      # Optional authentication for your Loki instance:
+      # LOKI_ORG_ID: tenant-1
+      # LOKI_USERNAME: admin
+      # LOKI_PASSWORD: secret
+      # LOKI_TOKEN: your-bearer-token
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     depends_on:
       loki:
         condition: service_healthy

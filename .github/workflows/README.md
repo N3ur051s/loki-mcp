@@ -1,40 +1,37 @@
 # CI/CD Workflows
 
-This directory contains GitHub Actions workflows for continuous integration and testing.
+This directory contains the GitHub Actions workflows used by the project.
 
 ## Workflows
 
-### 1. `ci.yml` - Comprehensive CI Pipeline
-- **Triggers**: Pull requests and pushes to `main`
+### `ci.yml` — main CI pipeline
+
+- **Triggers**: pull requests and pushes to `main`
 - **Jobs**:
-  - **Test**: Runs unit tests with coverage reporting
-  - **Build**: Builds server and client binaries
-  - **Lint**: Code quality checks with golangci-lint
-  - **Integration Test**: End-to-end testing with real Loki instance
+  - **Test**: runs `go test -race` with coverage
+  - **Build**: builds the server and client, then runs `govulncheck`
+  - **Lint**: runs `go vet` and `golangci-lint`
+  - **Docker**: builds the container image
 
-### 2. `test.yml` - Quick Test Runner
-- **Triggers**: Pull requests and pushes to `main`  
-- **Jobs**:
-  - **Test**: Matrix testing across Go 1.20 and 1.21
-  - **Build**: Simple build verification
+### `test.yml` — manual test runner
 
-## Timestamp Bug Protection
+- **Trigger**: `workflow_dispatch` only
+- Runs the regular, race, and coverage test suites
+- Useful when re-running tests without pushing a commit
 
-Both workflows include specific tests for the timestamp parsing bug (issue #3) that was fixed:
+## Transport Tests
 
-- Unit tests verify that timestamps show correct years (2023, 2024, etc.) instead of 2262
-- Integration tests confirm the fix works with real Loki data
-- Regression tests prevent the bug from being reintroduced
+The test suite starts the real HTTP handlers and verifies:
 
-## Test Coverage
+- Streamable HTTP initialization, `tools/list`, and `tools/call`
+- The `/stream` backward-compatible alias
+- Stateful session creation and `DELETE` termination
+- CORS preflight handling
+- Health and service-discovery endpoints
+- Configuration validation and defaults
 
-Our tests cover:
-- ✅ Timestamp parsing with nanosecond precision
-- ✅ Multiple timestamp formats and edge cases
-- ✅ Invalid timestamp fallback behavior
-- ✅ Empty result handling
-- ✅ Stream formatting and labeling
-- ✅ Integration with real Loki instances
+The handler tests also cover timestamp parsing and formatting regressions, including the original
+year-2262 bug (issue #3).
 
 ## Running Tests Locally
 
@@ -46,19 +43,24 @@ go test ./...
 go test -coverprofile=coverage.out ./...
 go tool cover -func=coverage.out
 
-# Run tests with race detection
+# Run tests with race detection (requires cgo on some platforms)
 go test -race ./...
 
 # Build verification
 go build ./cmd/server
 go build ./cmd/client
+
+# Build the container image
+docker build -t loki-mcp-server:test .
 ```
 
 ## Adding New Tests
 
 When adding new functionality:
 
-1. Add unit tests to the appropriate `*_test.go` file
-2. For timestamp-related changes, add regression tests to prevent bug #3
-3. Ensure tests pass locally before submitting PR
-4. CI will automatically run on PR creation 
+1. Add unit tests next to the code in the appropriate `*_test.go` file.
+2. Add a transport-level test in `cmd/server/main_test.go` when the change affects HTTP behavior.
+3. Add a regression test for bug fixes.
+4. Run `go vet ./...` and `go test ./...` before opening a pull request.
+
+CI runs automatically for pull requests and pushes to `main`.

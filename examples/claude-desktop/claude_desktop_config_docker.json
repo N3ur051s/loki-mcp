@@ -2,10 +2,19 @@
   "mcpServers": {
     "loki-mcp-server": {
       "command": "docker",
-      "args": ["run", "--rm", "-i", "-e", "LOKI_URL=http://host.docker.internal:3100", "loki-mcp-server:latest"],
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "MCP_TRANSPORT=stdio",
+        "-e",
+        "LOKI_URL=http://host.docker.internal:3100",
+        "loki-mcp-server:latest"
+      ],
       "env": {},
       "disabled": false,
-      "autoApprove": ["loki_query"]
+      "autoApprove": ["loki_query", "loki_label_names", "loki_label_values"]
     }
   }
 }
