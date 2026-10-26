@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VERSION: "0.2.0"
+        VERSION: "0.2.1"
     image: loki-mcp-server:latest
     container_name: loki-mcp-server
     restart: unless-stopped

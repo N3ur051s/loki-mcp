@@ -21,7 +21,7 @@ This directory contains the GitHub Actions workflows used by the project.
 
 ### `release.yml` — build and publish a release
 
-- **Triggers**: pushing a tag that starts with `v` (for example `v0.2.0`), or manual `workflow_dispatch`
+- **Triggers**: pushing a tag that starts with `v` (for example `v0.2.1`), or manual `workflow_dispatch`
 - **Jobs**:
   - **Release**: cross-compiles the server for Linux, macOS, and Windows on amd64/arm64,
     creates `.tar.gz`/`.zip` archives with `README.md` and `LICENSE`, writes
@@ -33,7 +33,7 @@ This directory contains the GitHub Actions workflows used by the project.
 To publish a release, push a tag:
 
 ```bash
-git tag -a v0.2.0 -m "v0.2.0"
+git tag -a v0.2.1 -m "v0.2.1"
 git push github main --tags
 ```
 

@@ -8,7 +8,7 @@ GOMOD=$(GOCMD) mod
 BINARY_NAME=loki-mcp-server
 BINARY_UNIX=$(BINARY_NAME)_unix
 MAIN_PATH=./cmd/server
-VERSION ?= 0.2.0
+VERSION ?= 0.2.1
 LDFLAGS=-s -w -X main.version=$(VERSION)
 
 .PHONY: all build clean test test-race cover vet fmt tidy run run-http deps build-linux docker-build docker-run help

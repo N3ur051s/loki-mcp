@@ -2,7 +2,7 @@
 
 FROM golang:1.27.3-alpine AS builder
 
-ARG VERSION=0.2.0
+ARG VERSION=0.2.1
 
 WORKDIR /src
 

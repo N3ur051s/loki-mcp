@@ -36,7 +36,7 @@ GitHub Releases 提供 Linux、macOS 和 Windows 的 amd64 / arm64 二进制包�
 ### 1. 构建镜像
 
 ```bash
-docker build -t loki-mcp-server:0.2.0 .
+docker build -t loki-mcp-server:0.2.1 .
 ```
 
 ### 使用预构建镜像
@@ -59,7 +59,7 @@ docker run -d \
   --restart unless-stopped \
   -p 8080:8080 \
   -e LOKI_URL=http://host.docker.internal:3100 \
-  loki-mcp-server:0.2.0
+  loki-mcp-server:0.2.1
 ```
 
 Linux 主机需要让容器能够访问宿主机上的 Loki：
@@ -71,7 +71,7 @@ docker run -d \
   --add-host=host.docker.internal:host-gateway \
   -p 8080:8080 \
   -e LOKI_URL=http://host.docker.internal:3100 \
-  loki-mcp-server:0.2.0
+  loki-mcp-server:0.2.1
 ```
 
 如果 Loki 在另一个容器中，把 `LOKI_URL` 改成对应的服务地址即可：
@@ -93,7 +93,7 @@ curl http://localhost:8080/healthz
   "service": "loki-mcp-server",
   "status": "ok",
   "time": "2026-10-23T12:00:00Z",
-  "version": "0.2.0"
+  "version": "0.2.1"
 }
 ```
 
@@ -145,7 +145,7 @@ docker compose up -d loki-mcp-server
 ```yaml
 services:
   loki-mcp-server:
-    image: loki-mcp-server:0.2.0
+    image: loki-mcp-server:0.2.1
     ports:
       - "8080:8080"
     environment:
@@ -405,7 +405,7 @@ MCP_DISABLE_DNS_REBINDING_PROTECTION=true
 项目通过 GitHub Actions 自动发布。创建并推送 `v*` 标签即可触发：
 
 ```bash
-git tag -a v0.2.0 -m "v0.2.0"
+git tag -a v0.2.1 -m "v0.2.1"
 git push github main --tags
 ```
 
