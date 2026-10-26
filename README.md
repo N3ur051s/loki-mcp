@@ -1,5 +1,8 @@
 # Loki MCP Server
 
+[![CI](https://github.com/N3ur051s/loki-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/N3ur051s/loki-mcp/actions/workflows/ci.yml)
+[![Release](https://github.com/N3ur051s/loki-mcp/actions/workflows/release.yml/badge.svg)](https://github.com/N3ur051s/loki-mcp/actions/workflows/release.yml)
+
 基于 Go 的 [Grafana Loki](https://grafana.com/oss/loki/) Model Context Protocol (MCP) 服务，通过
 **Streamable HTTP** 对外提供 Loki 查询能力。
 
@@ -14,6 +17,20 @@
 - 支持 stateless / stateful 会话、CORS、心跳和健康检查
 - 基于 `mcp-go v1.3.0`，兼容新旧 MCP 协议版本
 
+## 下载预编译版本
+
+GitHub Releases 提供 Linux、macOS 和 Windows 的 amd64 / arm64 二进制包：
+
+<https://github.com/N3ur051s/loki-mcp/releases/latest>
+
+下载对应平台的压缩包，解压后即可运行：
+
+```bash
+./loki-mcp-server -version
+```
+
+每个 Release 同时提供 `checksums.txt`，用于校验下载文件。
+
 ## Docker 部署
 
 ### 1. 构建镜像
@@ -21,6 +38,16 @@
 ```bash
 docker build -t loki-mcp-server:0.2.0 .
 ```
+
+### 使用预构建镜像
+
+每次发布都会推送多架构镜像到 GitHub Container Registry：
+
+```bash
+docker pull ghcr.io/n3ur051s/loki-mcp:latest
+```
+
+如果 Package 默认为私有，需要先在 GitHub 仓库的 **Packages** 页面将镜像可见性改为 public，或使用 `docker login ghcr.io` 登录后再拉取。
 
 ### 2. 启动容器
 
@@ -371,6 +398,33 @@ MCP_DISABLE_DNS_REBINDING_PROTECTION=true
 
 ```bash
 -e MCP_SESSION_MODE=stateless
+```
+
+## 发布新版本
+
+项目通过 GitHub Actions 自动发布。创建并推送 `v*` 标签即可触发：
+
+```bash
+git tag -a v0.2.0 -m "v0.2.0"
+git push github main --tags
+```
+
+`Release` 工作流会自动：
+
+1. 交叉编译 Linux / macOS / Windows 的 amd64 / arm64 版本
+2. 生成 `.tar.gz` / `.zip` 压缩包和 `checksums.txt`
+3. 创建 GitHub Release，并根据提交记录自动生成发布说明
+4. 构建多架构 Docker 镜像并推送到 `ghcr.io/n3ur051s/loki-mcp`
+
+也可以在 GitHub 的 **Actions → Release → Run workflow** 中手动填写已存在的标签来重新发布。
+
+如果 Release 工作流无法创建 Release，请在仓库的 **Settings → Actions → General → Workflow permissions** 中选择 **Read and write permissions**。
+
+首次从本地仓库推送：
+
+```bash
+git remote add github https://github.com/N3ur051s/loki-mcp.git
+git push github main
 ```
 
 ## 许可证

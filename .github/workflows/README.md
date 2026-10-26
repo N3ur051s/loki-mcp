@@ -19,6 +19,24 @@ This directory contains the GitHub Actions workflows used by the project.
 - Runs the regular, race, and coverage test suites
 - Useful when re-running tests without pushing a commit
 
+### `release.yml` — build and publish a release
+
+- **Triggers**: pushing a tag that starts with `v` (for example `v0.2.0`), or manual `workflow_dispatch`
+- **Jobs**:
+  - **Release**: cross-compiles the server for Linux, macOS, and Windows on amd64/arm64,
+    creates `.tar.gz`/`.zip` archives with `README.md` and `LICENSE`, writes
+    `checksums.txt`, and creates a GitHub Release with generated release notes
+  - **Docker**: builds and pushes a multi-architecture image to
+    `ghcr.io/n3ur051s/loki-mcp`
+- Uses the default `GITHUB_TOKEN`; no additional secrets are required
+
+To publish a release, push a tag:
+
+```bash
+git tag -a v0.2.0 -m "v0.2.0"
+git push github main --tags
+```
+
 ## Transport Tests
 
 The test suite starts the real HTTP handlers and verifies:

@@ -1,4 +1,4 @@
-module github.com/scottlepp/loki-mcp
+module github.com/N3ur051s/loki-mcp
 
 go 1.25.5
 

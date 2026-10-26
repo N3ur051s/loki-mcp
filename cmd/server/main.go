@@ -17,7 +17,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/scottlepp/loki-mcp/internal/handlers"
+	"github.com/N3ur051s/loki-mcp/internal/handlers"
 )
 
 // version is overridden at build time with:
