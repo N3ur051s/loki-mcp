@@ -50,7 +50,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("health request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
@@ -75,7 +75,7 @@ func TestRootEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("root request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
@@ -105,7 +105,7 @@ func TestCORSHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CORS preflight failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("expected status 204, got %d", resp.StatusCode)
@@ -147,7 +147,7 @@ func TestStreamableHTTPClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create streamable HTTP client: %v", err)
 	}
-	defer mcpClient.Close()
+	defer func() { _ = mcpClient.Close() }()
 
 	if err := mcpClient.Start(ctx); err != nil {
 		t.Fatalf("failed to start client: %v", err)
@@ -210,7 +210,7 @@ func TestStreamableHTTPAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
-	defer mcpClient.Close()
+	defer func() { _ = mcpClient.Close() }()
 
 	if err := mcpClient.Start(ctx); err != nil {
 		t.Fatalf("failed to start client: %v", err)
@@ -250,7 +250,7 @@ func TestStatefulSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("initialize failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
 	}
@@ -272,7 +272,7 @@ func TestStatefulSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tools/list failed: %v", err)
 	}
-	defer listResp.Body.Close()
+	defer func() { _ = listResp.Body.Close() }()
 	if listResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200 for tools/list, got %d", listResp.StatusCode)
 	}
@@ -286,7 +286,7 @@ func TestStatefulSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DELETE session failed: %v", err)
 	}
-	defer deleteResp.Body.Close()
+	defer func() { _ = deleteResp.Body.Close() }()
 	if deleteResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200 for DELETE, got %d", deleteResp.StatusCode)
 	}
@@ -299,7 +299,7 @@ func TestUnknownPathReturnsNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", resp.StatusCode)

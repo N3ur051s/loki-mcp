@@ -1,6 +1,6 @@
 module github.com/N3ur051s/loki-mcp
 
-go 1.25.5
+go 1.27.3
 
 require github.com/mark3labs/mcp-go v1.3.0
 

@@ -363,7 +363,7 @@ func executeLokiQuery(ctx context.Context, queryURL string, username, password, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)
@@ -676,7 +676,7 @@ func executeLokiLabelsQuery(ctx context.Context, queryURL string, username, pass
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)
@@ -728,7 +728,7 @@ func executeLokiLabelValuesQuery(ctx context.Context, queryURL string, username,
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)
